@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		
+		<!-- ページのタイトルを記述 -->
+		<title>NGS data finder</title>
+		
+		<meta charset="utf-8">
+		
+		<!-- content属性にページの紹介文を記述 -->
+		<meta name="description" content="">
+		<!-- content属性にページの著者情報を記述 -->
+		<meta name="author" content="H.Wakaguri">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="">
+		<link rel="shortcut icon" href="">
+	</head>
+	<body>
+		<h1>NGS data finder</h1>
+		<!-- コンテンツを記述 -->
+		<div>
+			<h2>Bam(bam and bam.bai)</h2>
+			<div>
+				<div><input type="file" id="files" name="file" multiple=""></div>
+				Genomic region: 
+				<input type="text" name="region" placeholder="ex) chr1:10000-20000" id="bam_region" value="" size="30" /> 
+				<input type="button" value="show" id="show_btn" />
+			</div>
+		</div>
+		<script src="js/bam.js"></script>
+		<script src="js/example.js"></script>
+		<!-- 例: <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script> -->
+	</body>
+</html>
