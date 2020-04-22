@@ -39,7 +39,7 @@ For example, in case of extracting alignment information of **chr22: 20000000-20
 		});
 	</script>
 * The "download" program is perl CGI script. If you are using Apache, enable the .htaccess setting by changing the setting against your open directory from "Allowoverride None" to "Allowoverride All". 
-* Alternatively, you can use the sample directory instead of the download program, but you cannot use it if the response header contains extra values. When using the sample directory, change from new BamData ("download / ENCFF437TPA_chr22_cut.sorted.bam") to new BamData ("sample / ENCFF437TPA_chr22_cut.sorted.bam").
+* Alternatively, you can use the sample directory instead of the download program, but you cannot use it if the response header contains extra values. When using the sample directory, change from new BamData ("download/ENCFF437TPA_chr22_cut.sorted.bam") to new BamData ("sample/ENCFF437TPA_chr22_cut.sorted.bam").
 
 ---
 #### For bigbed.js and tabix.js
