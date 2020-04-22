@@ -1,0 +1,347 @@
+#!/usr/bin/env perl
+
+
+use strict;
+use Fcntl ':mode';
+
+my $OPENDIR = "./sample";
+
+eval {
+	my $fname = get_file_name();
+	
+	my $search_path = "$OPENDIR/$fname";
+	
+	if(!is_format_valid($fname) || !(-e $search_path)) {
+		print_404($search_path);
+		exit 0;
+	}
+	
+	if(-d $search_path) {
+		my @dirstat = stat "$search_path";
+		if(!($dirstat[2] & S_IROTH)) {
+			print_403($search_path);
+			exit 0;
+		}
+		
+		my $html_str = get_directory_html($fname);
+		print "$html_str\n";
+	} elsif(-f $search_path) {
+		my @filestat = stat "$search_path";
+		if(!($filestat[2] & S_IROTH)) {
+			print_403($search_path);
+			exit 0;
+		}
+		
+		if($ENV{'REQUEST_METHOD'} eq "OPTIONS") {
+			print("Access-control-allow-origin: *\n");
+			print("Access-control-allow-headers: Origin, X-Requested-With, Content-Type, Accept, Range, x-test\n");
+			print("Content-type: text/html\n\n");
+			print "Allow: GET,POST\n";
+			
+			exit 0;
+		}
+		
+		my ($byte_start, $byte_end);
+		if($ENV{HTTP_RANGE}) {
+			my ($bytes, $vals) = split(/=/, $ENV{HTTP_RANGE});
+			if($bytes eq "bytes") {
+				($byte_start, $byte_end) = split(/\-/, $vals);
+			}
+		}
+		
+		binmode STDOUT;
+		my $buffer = 10000;
+		my $poi    = 0;
+		
+		open(UPLOD, "$search_path")
+			|| error_end("File open", "$!: $search_path", __LINE__);
+		
+		my $file_size = -s $search_path;
+		my $content_lng = $file_size;
+		
+		if(defined($byte_start) && defined($byte_end)) {
+			$poi = $byte_start;
+			$byte_end = $file_size - 1 if($byte_end > $file_size - 1);
+			$content_lng = $byte_end - $poi + 1;
+		}
+		
+		print("Access-control-allow-origin: *\n");
+		print("Access-control-allow-headers: Origin, X-Requested-With, Content-Type, Accept, Range, x-test\n");
+		print("Content-type: Application/Octet-Stream\n");
+		print "Status: 206 Partial Content\n" if(defined($byte_start) && defined($byte_end));
+		my $file = (split(/\//, $fname))[-1];
+		print "Content-Disposition: attachment; filename=$file\n";
+		print "Content-Length: $content_lng\n\n";
+		
+		while(seek(UPLOD, $poi, 0)) {
+			my $bin;
+			if(defined($byte_start) && defined($byte_end)) {
+				if($buffer > $byte_end - $poi + 1) {
+					read(UPLOD, $bin, $byte_end - $poi + 1);
+					print $bin;
+					last;
+				} else {
+					if(!read(UPLOD, $bin, $buffer)){last;}
+				}
+			} else {
+				if(!read(UPLOD, $bin, $buffer)){last;}
+			}
+			print $bin;
+			$poi += $buffer;
+		}
+		
+		close(UPLOD) || error_end("File close", "$!: $search_path", __LINE__);
+	} else {
+		my $str = "Access-control-allow-origin: *\nContent-type: text/html\n\n";
+		$str .= qq{
+			<html>
+				<head></head>
+				<body>
+					<div>ERROR</div>
+					Cannot download.
+				</body>
+			</html>
+		};
+		print "$str\n";
+	}
+	
+	exit 0;
+};
+error_end("Unexpected", $@, __LINE__);
+
+exit 10;
+#####################################################################################################
+###################################################
+#  input:()
+# retrun:
+#comment:
+###################################################
+sub get_directory_html
+{
+	my ($fname) = @_;
+	
+	my $html_str = "";
+	$html_str .= "Content-type: text/html \n\n";
+	
+	my $parent_path = (substr($fname, -1) eq "/")? "../": "./";
+	
+	$html_str .= qq{
+		<table id="list_table_table" border="0" width="100%">
+		<thead>
+			<tr><th width="50"></th><th align="left"><u>Name</u></th><th><u>Last modified</u></th><th align="right"></th></tr>
+			<tr><td colspan="4"><hr /></td></tr>
+		</thead>
+	};
+	$html_str .= qq{
+		<tbody>
+			<tr><td align="center">up</td><td><a href="$parent_path">Parent directory</a></td><td align="center">-</td><td align="right"></td></tr>
+	} if($fname && $fname ne "/");
+	
+	my $search_path = "$OPENDIR/$fname";
+	opendir(DIR, "$search_path") || die $!;
+	while(my $name = readdir(DIR)) {
+		if($name eq "." || $name eq "..") {next;}
+		my @filestat = stat "$search_path/$name";
+		my $mtime = join(" ", split(/ +/, localtime($filestat[9])));
+		if(-f "$search_path/$name") {
+			my $size_str = get_size_str($filestat[7]);
+			if($filestat[2] & S_IROTH) {
+				my $cp_fname = ($fname eq "/")? "download/": 
+					($fname eq "" || substr($fname, -1) eq "/")? "": 
+					(split(/\//, $fname))[-1] . "/";
+				
+				$html_str .= qq{
+					<tr><td align="center">file</td><td align="left"><a href="./$cp_fname$name">$name</a></td><td align="center">$mtime</td>					<td align="right">$size_str</td></tr>
+				};
+			} else {
+				$html_str .= qq{
+					<tr><td align="center">file</td><td align="left">$name</td><td align="center">$mtime</td>
+					<td align="right">$size_str</td></tr>
+				};
+			}
+			
+		} elsif(-l "$search_path/$name") {
+			my $cp_fname = ($fname eq "/")? "download/": 
+				($fname eq "" || substr($fname, -1) eq "/")? "": 
+				(split(/\//, $fname))[-1] . "/";
+			
+			$html_str .= qq{
+				<tr><td align="center">link</td><td align="left"><a href="./$cp_fname$name">$name/</a></td><td align="center">$mtime</td>
+				<td align="right"></td></tr>
+			};
+		} elsif(-d "$search_path/$name") {
+			if($filestat[2] & S_IROTH) {
+				my $cp_fname = ($fname eq "/")? "download/": 
+					($fname eq "" || substr($fname, -1) eq "/")? "": 
+					(split(/\//, $fname))[-1] . "/";
+				
+				$html_str .= qq{
+					<tr><td align="center">dir</td><td align="left"><a href="./$cp_fname$name">$name/</a></td><td align="center">$mtime</td>						<td align="right"></td></tr>
+				};
+			} else {
+				$html_str .= qq{
+					<tr><td align="center">dir</td><td align="left">$name/</td><td align="center">$mtime</td>
+					<td align="right"></td></tr>
+				};
+			}
+		}
+	}
+	closedir(DIR) || die $!;
+	
+	
+	
+	return $html_str;
+}
+
+###################################################
+#  input:()
+# retrun:
+#comment:
+###################################################
+sub get_size_str
+{
+	my ($size) = @_;
+	my $ut = "";
+	if($size >= 1024 ** 4) {
+		$ut = "T";
+		$size /= 1024 ** 4;
+		if($size < 10) {
+			$size *= 10; $size = int($size); $size /= 10;
+		} else {
+			$size = int($size);
+		}
+	} elsif($size >= 1024 ** 3) {
+		$ut = "G";
+		$size /= 1024 ** 3;
+		if($size < 10) {
+			$size *= 10; $size = int($size); $size /= 10;
+		} else {
+			$size = int($size);
+		}
+	} elsif($size >= 1024 ** 2) {
+		$ut = "M";
+		$size /= 1024 ** 2;
+		if($size < 10) {
+			$size *= 10; $size = int($size); $size /= 10;
+		} else {
+			$size = int($size);
+		}
+	} elsif($size >= 1024 ** 1) {
+		$ut = "K";
+		$size /= 1024 ** 1;
+		if($size < 10) {
+			$size *= 10; $size = int($size); $size /= 10;
+		} else {
+			$size = int($size);
+		}
+	}
+	
+	return "$size $ut";
+}
+
+#####################################################################################################
+###################################################
+#  input:()
+# retrun:
+#comment:
+###################################################
+sub print_404
+{
+	my ($search_path) = @_;
+	
+	my $str = "Status: 404 Not Found\n";
+	$str .= "Access-control-allow-origin: *\n";
+	$str .= "Content-type: text/html\n\n";
+	$str .= qq{
+		<html>
+			<head></head>
+			<body>
+				<div>$ENV{REQUEST_URI}</div>
+				<div>No such file or directory $search_path</div>
+			</body>
+		</html>
+	};
+	print "$str\n";
+	
+	return 1;
+}
+
+###################################################
+#  input:()
+# retrun:
+#comment:
+###################################################
+sub print_403
+{
+	my ($search_path) = @_;
+	
+	my $str = "Status: 403 Forbidden\n";
+	$str .= "Access-control-allow-origin: *\n";
+	$str .= "Content-type: text/html\n\n";
+	$str .= qq{
+		<html>
+			<head></head>
+			<body>
+				<div>$ENV{REQUEST_URI}</div>
+				<div>Permission denied $search_path</div>
+			</body>
+		</html>
+	};
+	print "$str\n";
+	
+	return 1;
+}
+
+####################################################################################################
+###################################################
+#  input:()
+# retrun:
+#comment:
+###################################################
+sub is_format_valid
+{
+	my ($fname) = @_;
+	
+	foreach (split(/\//, $fname)) {
+		if(/^\./) {return 0;}
+	}
+	return 1;
+}
+
+###################################################
+#  input:()
+# retrun:
+#comment:
+###################################################
+sub get_file_name
+{
+	my $file_name = $ENV{REQUEST_URI};
+	
+	if($file_name eq "/ngs_js/download") {
+		$file_name = "/";
+	}
+	
+	$file_name =~ s/^.*?\/download.*?\///;
+	$file_name =~ s/[^\w\/\-\.]//g;
+	
+	#$file_name =~ s/\/$//;
+	#$file_name =~ s/.*\///;
+	#$file_name =~ s/\?.*//g;
+	
+	return $file_name;
+}
+
+###################################################
+#  input:($type, $comment, $point)
+# retrun:exit 1
+#comment:error_sub
+###################################################
+sub error_end
+{
+	my ($type, $comment, $point) = @_;
+	print "Content-type: text/html \n\n";
+	print "<h1>Error</h1><div>$type</div><div>$comment</div>\n";
+	exit 1;
+}
+
+####################################################################################################

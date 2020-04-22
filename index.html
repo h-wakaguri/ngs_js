@@ -3,14 +3,9 @@
 	<head>
 		<meta http-equiv="X-UA-Compatible" content="IE=edge">
 		
-		<!-- ページのタイトルを記述 -->
 		<title>NGS data finder</title>
-		
 		<meta charset="utf-8">
-		
-		<!-- content属性にページの紹介文を記述 -->
 		<meta name="description" content="">
-		<!-- content属性にページの著者情報を記述 -->
 		<meta name="author" content="H.Wakaguri">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<link rel="stylesheet" href="">
@@ -18,18 +13,44 @@
 	</head>
 	<body>
 		<h1>NGS data finder</h1>
-		<!-- コンテンツを記述 -->
 		<div>
-			<h2>Bam(bam and bam.bai)</h2>
+			<h2>Bam(.bam and .bam.bai)</h2>
 			<div>
-				<div><input type="file" id="files" name="file" multiple=""></div>
+				<div id="bam_comment">Please select bam and bam.bai files.</div>
+				<div><input type="file" id="bam_files" name="file" multiple=""></div>
 				Genomic region: 
-				<input type="text" name="region" placeholder="ex) chr1:10000-20000" id="bam_region" value="" size="30" /> 
-				<input type="button" value="show" id="show_btn" />
+				<input type="text" name="bam_region" placeholder="ex) chr1:10000-20000" id="bam_region" value="" size="30" /> 
+				<input type="button" value="show" id="bam_show_btn" />
+				<div id="bam_result"></div>
+			</div>
+		</div>
+		<hr />
+		<div>
+			<h2>BigWig(.bw) or bigBed(.bb)</h2>
+			<div>
+				<div id="bw_comment">Please select bigWig or bigBed file.</div>
+				<div><input type="file" id="bw_file" name="file" multiple=""></div>
+				Genomic region: 
+				<input type="text" name="bw_region" placeholder="ex) chr1:10000-20000" id="bw_region" value="" size="30" /> 
+				<input type="button" value="show" id="bw_show_btn" />
+				<div id="bw_result"></div>
+			</div>
+		</div>
+		<hr />
+		<div>
+			<h2>VCF/tabix(.vcf.gz and .vcf.gz.tbi)</h2>
+			<div>
+				<div id="tbi_comment">Please select vcf.gz and vcf.gz.tbi files.</div>
+				<div><input type="file" id="tbi_files" name="file" multiple=""></div>
+				Genomic region: 
+				<input type="text" name="tbi_region" placeholder="ex) chr1:10000-20000" id="tbi_region" value="" size="30" /> 
+				<input type="button" value="show" id="tbi_show_btn" />
+				<div id="tbi_result"></div>
 			</div>
 		</div>
 		<script src="js/bam.js"></script>
+		<script src="js/bigbed.js"></script>
+		<script src="js/tabix.js"></script>
 		<script src="js/example.js"></script>
-		<!-- 例: <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script> -->
 	</body>
 </html>

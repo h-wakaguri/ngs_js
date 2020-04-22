@@ -1,6 +1,6 @@
 /**
  * @author Hiroyuki Wakaguri: hwakagur@bits.cc
- * bam.js v1.4.20190610
+ * bam.js v1.5.20200419(error catch)
  * _82 NovaSeq(bam) error modified
  */
 
@@ -39,7 +39,13 @@ BamData.prototype.accRequest = function(callback, reject, option) {
 				return false;
 			}
 		};
-		reader.readAsArrayBuffer(blob);
+		
+		try {
+			reader.readAsArrayBuffer(blob);
+		} catch(e) {
+			reject("Error file access failed", e);
+			return false;
+		}
 	} else {
 		var accFile = (option.file !== undefined)? option.file: this.file;
 		var xhr = new XMLHttpRequest();
@@ -93,7 +99,12 @@ BamData.prototype.chromosome = function(callback, reject) {
 		m.accRequest(function(response) {
 			var chrData = {};
 			
-			var plain = new Zlib.Gunzip(new Uint8Array(response)).decompress();
+			try {
+				var plain = new Zlib.Gunzip(new Uint8Array(response)).decompress();
+			} catch(e) {
+				reject(e);
+				return false;
+			}
 			let dataview = new DataView(plain.buffer);
 			
 			var dtSize = plain.length;
@@ -197,6 +208,7 @@ BamData.prototype.accIndex = function(callback, reject) {
 	
 	var option = {};
 	option.file = (this.option.localFlg)? this.file[1]: this.file + ".bai";
+	if(option.file === undefined) option.file = "";
 	
 	this.accRequest(function(response) {
 		var plain = new Uint8Array(response);
@@ -718,7 +730,12 @@ BamData.prototype.accBamPartial = function(unloadedChunks) {
 			while(nowPoi <= lastPoi) {
 				var blockLng = origin[nowPoi + 16] + origin[nowPoi + 16 + 1] * 256 + 1;
 				var nowOrigin = origin.subarray(nowPoi, nowPoi + blockLng);
-				var nowPlain = new Zlib.Gunzip(nowOrigin).decompress();
+				try {
+					var nowPlain = new Zlib.Gunzip(nowOrigin).decompress();
+				} catch(e) {
+					reject(e);
+					return false;
+				}
 				m.bamChunk[chunkData[0] + nowPoi] = [chunkData[0] + nowPoi + blockLng, nowPlain];
 				if(
 					m.loadData.chunk[chunkData[0] + nowPoi] !== undefined && 

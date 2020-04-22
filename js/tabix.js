@@ -1,6 +1,6 @@
 /**
  * @author Hiroyuki Wakaguri: hwakagur@bits.cc
- * tabix.js v1.2.20200404(ヘッダ情報の非同期取得)
+ * tabix.js v1.3.20200420(無い染色体を選んだ場合、空の配列を返すようにする)
  */
 
 var TabixData = function(fil, option) {
@@ -280,8 +280,9 @@ TabixData.prototype.sampleListReader = function(callback, reject, option) {
 TabixData.prototype.getTargetChunks = function(chr, start, end) {
 	var targetChunks = [];
 	//以下条件にあったデータを出力
-	var tbiData = this.tbiData;
+	if(this.chrData.chr2no[chr] === undefined) return [];
 	var chrId = this.chrData.chr2no[chr].no;
+	var tbiData = this.tbiData;
 	if(tbiData.chr[chrId] === undefined) return [];
 	//不要なファイルアクセスを防ぐlinearIndex
 	var indexNo = Math.floor((start - 1) / 16384);

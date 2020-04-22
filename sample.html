@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		
+		<title>NGS data finder</title>
+		<meta charset="utf-8">
+		<meta name="description" content="">
+		<meta name="author" content="H.Wakaguri">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="">
+		<link rel="shortcut icon" href="">
+	</head>
+	<body>
+		<h1>Please see console using developer tool</h1>
+		
+		<!-- Usage of bam module -->
+		<script src="js/bam.js"></script>
+		<script>
+			//bamObject = new BamData(<BamURL>);
+			let bam = new BamData("download/ENCFF437TPA_chr22_cut.sorted.bam");
+			
+			//bamObject.readWaitReader(<chromosome>, <chromStart>, <chromEnd>, <callbackFunc>, <errorFunc>);
+			bam.readWaitReader("chr22", 20000000, 20001000, function(fetcher) {
+			    for(var alnEach of fetcher()) {
+				    console.log(alnEach);
+			    }
+			}, function(err) {
+			    alert("Fail to data access:" + err);
+			});
+		</script>
+		
+		<!-- Usage of bigBed (or bigWig) module -->
+		<!--
+		<script src="js/bigbed.js"></script>
+		<script>
+			//bigBedObject = new BigbedData(<BamURL>);
+			let bb = new BigbedData("download/genes.sorted.bb");
+			
+			//bigBedObject.readWaitReader(<chromosome>, <chromStart>, <chromEnd>, <reductionLevel>, <callbackFunc>, <errorFunc>);
+			bb.readWaitReader("chr22", 300000, 400000, 1, function(reductionLevel, fetcher) {
+			    for(var alnEach of fetcher()) {
+				    console.log(alnEach);
+			    }
+			}, function(err) {
+			    alert("Fail to data access:" + err);
+			});
+		</script>
+		-->
+		
+		<!-- Usage of VCF/tabix module -->
+		<!--
+		<script src="js/tabix.js"></script>
+		<script>
+			//VCFtabixObject = new TabixData(<BamURL>);
+			let vcf = new TabixData("download/make_vcf.vcf.gz");
+			
+			//VCFtabixObject.readWaitReader(<chromosome>, <chromStart>, <chromEnd>, <callbackFunc>, <errorFunc>);
+			vcf.readWaitReader("NC_045512.2", 500, 600, function(fetcher) {
+			    for(var alnEach of fetcher()) {
+				    console.log(alnEach);
+			    }
+			}, function(err) {
+			    alert("Fail to data access:" + err);
+			});
+		</script>
+		-->
+		
+	</body>
+</html>
