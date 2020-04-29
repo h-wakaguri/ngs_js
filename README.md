@@ -7,7 +7,7 @@ Data parser for NGS data.
 
 ### Demo
 
-[Demo](https://mession.ddo.jp/~wakaguri/ngs_js/)   
+[Demo](http://mession.ddo.jp/~wakaguri/ngs_js/)
 
 ### Requirement
 
