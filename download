@@ -5,6 +5,7 @@ use strict;
 use Fcntl ':mode';
 
 my $OPENDIR = "./sample";
+my $NO_PERM_SHOW_FLG = 1;
 
 eval {
 	my $fname = get_file_name();
@@ -19,7 +20,11 @@ eval {
 	if(-d $search_path) {
 		my @dirstat = stat "$search_path";
 		if(!($dirstat[2] & S_IROTH)) {
-			print_403($search_path);
+			if($NO_PERM_SHOW_FLG) {
+				print_403($search_path);
+			} else {
+				print_404($search_path);
+			}
 			exit 0;
 		}
 		
@@ -28,7 +33,11 @@ eval {
 	} elsif(-f $search_path) {
 		my @filestat = stat "$search_path";
 		if(!($filestat[2] & S_IROTH)) {
-			print_403($search_path);
+			if($NO_PERM_SHOW_FLG) {
+				print_403($search_path);
+			} else {
+				print_404($search_path);
+			}
 			exit 0;
 		}
 		
@@ -94,8 +103,12 @@ eval {
 	} else {
 		my $str = "Access-control-allow-origin: *\nContent-type: text/html\n\n";
 		$str .= qq{
+			<!DOCTYPE html>
 			<html>
-				<head></head>
+				<head>
+					<title>Error</title>
+					<meta charset="utf-8">
+				</head>
 				<body>
 					<div>ERROR</div>
 					Cannot download.
@@ -126,15 +139,22 @@ sub get_directory_html
 	my $parent_path = (substr($fname, -1) eq "/")? "../": "./";
 	
 	$html_str .= qq{
-		<table id="list_table_table" border="0" width="100%">
-		<thead>
-			<tr><th width="50"></th><th align="left"><u>Name</u></th><th><u>Last modified</u></th><th align="right"></th></tr>
-			<tr><td colspan="4"><hr /></td></tr>
-		</thead>
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<title>Download</title>
+			<meta charset="utf-8">
+		</head>
+		<body>
+			<table id="list_table_table" border="0" width="100%">
+			<thead>
+				<tr><th width="50"></th><th align="left"><u>Name</u></th><th><u>Last modified</u></th><th align="right"></th></tr>
+				<tr><td colspan="4"><hr /></td></tr>
+			</thead>
+			<tbody>
 	};
 	$html_str .= qq{
-		<tbody>
-			<tr><td align="center">up</td><td><a href="$parent_path">Parent directory</a></td><td align="center">-</td><td align="right"></td></tr>
+			<tr><td align="center">[Up]</td><td><a href="$parent_path">Parent directory</a></td><td align="center">-</td><td align="right"></td></tr>
 	} if($fname && $fname ne "/");
 	
 	my $search_path = "$OPENDIR/$fname";
@@ -151,13 +171,15 @@ sub get_directory_html
 					(split(/\//, $fname))[-1] . "/";
 				
 				$html_str .= qq{
-					<tr><td align="center">file</td><td align="left"><a href="./$cp_fname$name">$name</a></td><td align="center">$mtime</td>					<td align="right">$size_str</td></tr>
+					<tr><td align="center">[F]</td><td align="left"><a href="./$cp_fname$name">$name</a></td><td align="center">$mtime</td>					<td align="right">$size_str</td></tr>
 				};
 			} else {
-				$html_str .= qq{
-					<tr><td align="center">file</td><td align="left">$name</td><td align="center">$mtime</td>
-					<td align="right">$size_str</td></tr>
-				};
+				if($NO_PERM_SHOW_FLG) {
+					$html_str .= qq{
+						<tr><td align="center">[F]</td><td align="left">$name</td><td align="center">$mtime</td>
+						<td align="right">$size_str</td></tr>
+					};
+				}
 			}
 			
 		} elsif(-l "$search_path/$name") {
@@ -166,7 +188,7 @@ sub get_directory_html
 				(split(/\//, $fname))[-1] . "/";
 			
 			$html_str .= qq{
-				<tr><td align="center">link</td><td align="left"><a href="./$cp_fname$name">$name/</a></td><td align="center">$mtime</td>
+				<tr><td align="center">[L]</td><td align="left"><a href="./$cp_fname$name">$name/</a></td><td align="center">$mtime</td>
 				<td align="right"></td></tr>
 			};
 		} elsif(-d "$search_path/$name") {
@@ -176,17 +198,24 @@ sub get_directory_html
 					(split(/\//, $fname))[-1] . "/";
 				
 				$html_str .= qq{
-					<tr><td align="center">dir</td><td align="left"><a href="./$cp_fname$name">$name/</a></td><td align="center">$mtime</td>						<td align="right"></td></tr>
+					<tr><td align="center">[D]</td><td align="left"><a href="./$cp_fname$name">$name/</a></td><td align="center">$mtime</td>						<td align="right"></td></tr>
 				};
 			} else {
 				$html_str .= qq{
-					<tr><td align="center">dir</td><td align="left">$name/</td><td align="center">$mtime</td>
+					<tr><td align="center">[D]</td><td align="left">$name/</td><td align="center">$mtime</td>
 					<td align="right"></td></tr>
 				};
 			}
 		}
 	}
 	closedir(DIR) || die $!;
+	
+	$html_str .= qq{
+			</tbody>
+			</table>
+		</body>
+		</html>
+	};
 	
 	
 	
@@ -254,7 +283,10 @@ sub print_404
 	$str .= "Content-type: text/html\n\n";
 	$str .= qq{
 		<html>
-			<head></head>
+			<head>
+				<title>404 Not Found</title>
+				<meta charset="utf-8">
+			</head>
 			<body>
 				<div>$ENV{REQUEST_URI}</div>
 				<div>No such file or directory $search_path</div>
@@ -280,7 +312,10 @@ sub print_403
 	$str .= "Content-type: text/html\n\n";
 	$str .= qq{
 		<html>
-			<head></head>
+			<head>
+				<title>403 Forbidden</title>
+				<meta charset="utf-8">
+			</head>
 			<body>
 				<div>$ENV{REQUEST_URI}</div>
 				<div>Permission denied $search_path</div>
