@@ -1,6 +1,6 @@
 /**
  * @author Hiroyuki Wakaguri: hwakagur@bits.cc
- * tabix.js v1.3.20200420(無い染色体を選んだ場合、空の配列を返すようにする)
+ * tabix.js v1.4.20200526(サンプルデータの読み込みフラグ追加)
  */
 
 var TabixData = function(fil, option) {
@@ -219,7 +219,6 @@ TabixData.prototype.accIndex = function(callback, reject) {
 		
 		m.tbiData = data;
 		
-		
 		m.accRequest(function(response2) {
 			var plain = new Zlib.Gunzip(new Uint8Array(response2)).decompress();
 			var str = "";
@@ -229,6 +228,7 @@ TabixData.prototype.accIndex = function(callback, reject) {
 					if(str.substr(0, 6) == "#CHROM") {
 						m.clmSampleList = str.split("\t");
 						//console.log(m.clmSampleList);
+						m.loadData.clmSampleList = true;
 						break;
 					}
 					str = "";
@@ -247,7 +247,8 @@ TabixData.prototype.accIndex = function(callback, reject) {
 };
 
 TabixData.prototype.getColumnSampleList = function() {
-	return this.clmSampleList;
+	if(this.loadData.clmSampleList) return this.clmSampleList;
+	return undefined;
 };
 
 TabixData.prototype.sampleListReader = function(callback, reject, option) {
