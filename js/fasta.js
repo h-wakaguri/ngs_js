@@ -1,12 +1,14 @@
 /**
  * @author Hiroyuki Wakaguri: hwakagur@bits.cc
- * fasta.js v1.1.20231206(初期版)
+ * fasta.js v1.2.20240206
  */
 
 class FastaData {
   constructor(fSuffix, option) {
-    this.fSuffix = fSuffix;
     this.option = (option !== undefined)? option: {};
+    this.fSuffix = (this.option.localFlg)? 
+      fSuffix: [{name: fSuffix}, {name: fSuffix + ".gzi"}, {name: fSuffix + ".fai"}];
+    
     //読み込み済みもしくは、読み込みリクエスト中データ
     this.loadData = {indexData: false, chunk: {}};
     //this.index[chr] = {fai: [chr, seqLng, fasta_file_offset, line_base, line_byte], gzi: [[baseStart, baseEnd, cmpOffsetStart, cmpOffsetEnd, extOffsetStart, extOffsetEnd], ...]}
@@ -157,7 +159,7 @@ class FastaData {
     }
     
     return new Promise((resolve, reject) => {
-      m.accRequest(m.fSuffix, (gzRes) => {
+      m.accRequest(m.fSuffix[0], (gzRes) => {
         if(m.data[chr] === undefined) m.data[chr] = {};
         
         m.data[chr][chunkNo] = gzRes;
@@ -186,8 +188,8 @@ class FastaData {
     let m = this;
     //gziファイルはすべて64ビットのリトルエンディアン:1個目のデータがチャンクの件数、
     //その後は[cmpOffsetStart, cmpOffsetEnd, extOffsetStart, extOffsetEnd]をチャンク件数回繰り返し
-    this.accRequest(this.fSuffix + ".gzi", (gziRes) => {
-      m.accRequest(m.fSuffix + ".fai", (faiRes) => {
+    this.accRequest(this.fSuffix[1], (gziRes) => {
+      m.accRequest(m.fSuffix[2], (faiRes) => {
         let seqDtList = faiRes.split("\n");
         let seqOffsetList = [];
         let bOffset = 0;
@@ -331,23 +333,49 @@ class FastaData {
   
   accRequest(accFile, callback, reject, option) {
     if(option === undefined) option = {};
-    let responseType = (option.responseType === undefined)? "arraybuffer": option.responseType;
     
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', accFile, true);
-    if(option.byteStart !== undefined && option.byteEnd !== undefined) {
-      xhr.setRequestHeader("Range", "bytes=" + option.byteStart + "-" + option.byteEnd);
-    }
-    xhr.addEventListener('loadend', (ev) => {
-      if(xhr.status !== 200 && xhr.status !== 206){
-        console.error('web status: ' + xhr.status + ', ' + xhr.statusText);
-        reject("web access failed", xhr);
-        return xhr.status;
+    if(this.option.localFlg) {
+      let blob = accFile;
+      if(option.byteStart !== undefined && option.byteEnd !== undefined) {
+        if (window.File && window.FileReader && window.FileList && window.Blob) {
+          blob = accFile.slice(parseInt(option.byteStart), parseInt(option.byteEnd) + 1);
+        } else {
+          alert('The File APIs are not fully supported in this browser.');
+          return false;
+        }
       }
-      callback(xhr.response);
-    }, false);
-    xhr.responseType = responseType;
-    xhr.send();
+      let reader = new FileReader();
+      reader.onloadend = function(evt) {
+        if (evt.target.readyState == FileReader.DONE) { // DONE == 2
+          callback(evt.target.result);
+        } else {
+          reject("file access failed", evt.target);
+          return false;
+        }
+      };
+      if (option.responseType === undefined) {
+        reader.readAsArrayBuffer(blob);
+      } else {
+        reader.readAsText(blob);
+      }
+    } else {
+      const responseType = (option.responseType === undefined)? "arraybuffer": option.responseType;
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', accFile.name, true);
+      if(option.byteStart !== undefined && option.byteEnd !== undefined) {
+        xhr.setRequestHeader("Range", "bytes=" + option.byteStart + "-" + option.byteEnd);
+      }
+      xhr.addEventListener('loadend', (ev) => {
+        if(xhr.status !== 200 && xhr.status !== 206){
+          console.error('web status: ' + xhr.status + ', ' + xhr.statusText);
+          reject("web access failed", xhr);
+          return xhr.status;
+        }
+        callback(xhr.response);
+      }, false);
+      xhr.responseType = responseType;
+      xhr.send();
+    }
   }
   
   isAllLoaded(chr, start, end) {

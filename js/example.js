@@ -3,11 +3,58 @@ window.onload = function() {
 	prepareBamSearch();
 	prepareBigWigSearch();
 	prepareTabixSearch();
+	prepareGziSearch();
 };
 
 /////
 
-function prepareTabixSearch() {
+const prepareGziSearch = () => {
+  let gzi;
+  
+  const gziRegionElm = document.getElementById("gzi_region");
+  const gziResElm = document.getElementById("gzi_result");
+  
+  const selFileElm = document.getElementById("gzi_files");
+  selFileElm.addEventListener("change", function() {
+    gziResElm.innerHTML = "";
+    const fList = getSortedGziFiles(this.files);
+    if(fList) {
+      gzi = new FastaData(fList, {localFlg: true});
+      gziShowBtnElm.disabled = false;
+    } else {
+      gziShowBtnElm.disabled = true;
+      gziResElm.innerHTML = "<div>Error: Please select \"*.gz\", \"*.gz.gzi\" and \"*.gz.fai\" files.</div>";
+    }
+  }, false);
+  
+  let gziShowBtnElm = document.getElementById("gzi_show_btn");
+  gziShowBtnElm.disabled = true;
+  gziShowBtnElm.addEventListener("click", function(e) {
+    const posList = getChromStartEndStrand(gziRegionElm);
+    if(posList) {
+      let chr = posList[0];
+      let start = posList[1];
+      let end = posList[2];
+      let strand = posList[3];
+      gziResElm.innerHTML = "wait...";
+      gzi.readWaitReader(chr, start, end, function(fetcher) {
+        let seq = "";
+        for(const seqEach of fetcher()) {
+          seq += seqEach;
+        }
+        gziResElm.innerHTML = "<textarea rows=\"10\" cols=\"100\">" + seq + "</textarea>";
+      }, function(err) {
+        alert("fail to access data:" + err);
+        gziResElm.innerHTML = "";
+      });
+    } else {
+      gziResElm.innerHTML = "<div>Error: Please input right genomic position.</div>";
+      gziRegionElm.focus();
+    }
+  });
+};
+
+const prepareTabixSearch = () => {
 	var tbi;
 	
 	var tbiRegionElm = document.getElementById("tbi_region");
@@ -85,9 +132,9 @@ function prepareTabixSearch() {
 			tbiRegionElm.focus();
 		}
 	});
-}
+};
 
-function showTbiTable(chr, data, clmSampleList) {
+const showTbiTable = (chr, data, clmSampleList) => {
 	var hitCnt = data.length;
 	var tableStr = "<div>Total hit count: " + hitCnt + "</div>";
 	if(hitCnt > 100) {
@@ -156,9 +203,9 @@ function showTbiTable(chr, data, clmSampleList) {
 	
 	var tbiResElm = document.getElementById("tbi_result");
 	tbiResElm.innerHTML = tableStr;
-}
+};
 
-function isVcfAndTbi(fList) {
+const isVcfAndTbi = (fList) => {
 	if(fList.length == 2) {
 		var name0 = fList[0].name;
 		var name1 = fList[1].name;
@@ -173,11 +220,45 @@ function isVcfAndTbi(fList) {
 	}
 	
 	return false;
-}
+};
+
+const getSortedGziFiles = (fList) => {
+  if(fList.length == 3) {
+    let newFList = [fList[0], fList[1], fList[2]];
+    if(
+      newFList[0].name.substr(-7) == ".gz.gzi" || 
+      newFList[0].name.substr(-7) == ".gz.fai"
+    ) {
+      const fTmp = newFList[0];
+      if(newFList[1].name.substr(-3) == ".gz") {
+        newFList[0] = newFList[1];
+        newFList[1] = fTmp;
+      } else {
+        newFList[0] = newFList[2];
+        newFList[2] = fTmp;
+      }
+    }
+    if(newFList[1].name.substr(-7) == ".gz.fai") {
+      const fTmp = newFList[1];
+      newFList[1] = newFList[2];
+      newFList[2] = fTmp;
+    }
+    if(
+      newFList[0].name.substr(-3) == ".gz" && 
+      newFList[1].name.substr(-7) == ".gz.gzi" && 
+      newFList[2].name.substr(-7) == ".gz.fai"
+    ) {
+      return newFList;
+    }
+  }
+  
+  return ;
+};
+
 
 /////
 
-function prepareBigWigSearch() {
+const prepareBigWigSearch = () => {
 	var bw;
 	
 	var bwRegionElm = document.getElementById("bw_region");
@@ -250,9 +331,9 @@ function prepareBigWigSearch() {
 			bwRegionElm.focus();
 		}
 	});
-}
+};
 
-function showBwTable(chr, data, clmMax, reductionLevel) {
+const showBwTable = (chr, data, clmMax, reductionLevel) => {
 	var hitCnt = data.length;
 	var tableStr = "<div>Reduction level: " + reductionLevel + "</div>";
 	tableStr += "<div>Total hit count: " + hitCnt + "</div>";
@@ -326,9 +407,9 @@ function showBwTable(chr, data, clmMax, reductionLevel) {
 	
 	var bwResElm = document.getElementById("bw_result");
 	bwResElm.innerHTML = tableStr;
-}
+};
 
-function getBwBb(fList) {
+const getBwBb = (fList) => {
 	if(fList.length == 1) {
 		var name0 = fList[0].name;
 		if(name0.substr(-3, 3) == ".bw") {
@@ -340,11 +421,11 @@ function getBwBb(fList) {
 	}
 	
 	return false;
-}
+};
 
 /////
 
-function prepareBamSearch() {
+const prepareBamSearch = () => {
 	var bam;
 	
 	var bamRegionElm = document.getElementById("bam_region");
@@ -404,9 +485,9 @@ function prepareBamSearch() {
 			bamRegionElm.focus();
 		}
 	});
-}
+};
 
-function showBamTable(chr, reads) {
+const showBamTable = (chr, reads) => {
 	var hitCnt = reads.length;
 	var tableStr = "<div>Total hit count: " + hitCnt + "</div>";
 	if(hitCnt > 100) {
@@ -448,9 +529,9 @@ function showBamTable(chr, reads) {
 	
 	var bamResElm = document.getElementById("bam_result");
 	bamResElm.innerHTML = tableStr;
-}
+};
 
-function getChromStartEndStrand(elm) {
+const getChromStartEndStrand = (elm) => {
 	var bamRegionValue = elm.value;
 	var chrPos = bamRegionValue.replace(" ", "").split(":");
 	if(chrPos.length <= 1) {
@@ -482,9 +563,9 @@ function getChromStartEndStrand(elm) {
 	elm.value = regionStr;
 	
 	return [chr, start, end, strand];
-}
+};
 
-function isBamAndBai(fList) {
+const isBamAndBai = (fList) => {
 	if(fList.length == 2) {
 		var name0 = fList[0].name;
 		var name1 = fList[1].name;
@@ -499,5 +580,5 @@ function isBamAndBai(fList) {
 	}
 	
 	return false;
-}
+};
 
