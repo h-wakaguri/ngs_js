@@ -1,6 +1,8 @@
 /**
  * @author Hiroyuki Wakaguri: hwakagur@bits.cc
- * tabix.js v1.3.20200420(無い染色体を選んだ場合、空の配列を返すようにする)
+ * tabix.js v1.1.20190926(ヘッダ情報の取得)
+ * tabix.js v1.2.20211213(ヘッダ情報の取得0からに戻すm.minBegCoffsetだとサンプル情報が取得できないことがあるため)
+ * tabix.js v1.3.20220119(clmSampleListの初期値をundefinedへ)
  */
 
 var TabixData = function(fil, option) {
@@ -10,7 +12,8 @@ var TabixData = function(fil, option) {
 	this.tbiData;
 	this.minBegCoffset;	//ヘッダ情報のバイト推定値をtbiファイルから得る
 	this.minEndCoffset;	//ヘッダ情報のバイト推定値をtbiファイルから得る
-	this.clmSampleList = [];
+	//clmSampleList = undefined の場合、サンプル名一覧の読み込みがまだ終わってない
+	this.clmSampleList = undefined;
 	this.tbiChunk = {};
 	//読み込み済みもしくは、読み込みリクエスト中データ
 	this.loadData = {};
@@ -239,8 +242,8 @@ TabixData.prototype.accIndex = function(callback, reject) {
 			callback();
 		
 		//byteStartは0でないと情報が取れないのかも
-		//}, reject, {byteStart: 0, byteEnd: m.minEndCoffset - 1});
-		}, reject, {byteStart: m.minBegCoffset, byteEnd: m.minEndCoffset - 1});
+		}, reject, {byteStart: 0, byteEnd: m.minEndCoffset - 1});
+		//}, reject, {byteStart: m.minBegCoffset, byteEnd: m.minEndCoffset - 1});
 		//callback();
 		
 	}, reject, option);
@@ -250,39 +253,11 @@ TabixData.prototype.getColumnSampleList = function() {
 	return this.clmSampleList;
 };
 
-TabixData.prototype.sampleListReader = function(callback, reject, option) {
-	if(option === undefined) option = {};
-	if(option.timeout === undefined) option.timeout = 300;
-	var m = this;
-	
-	this.indexData(function() {
-		if(m.clmSampleList.length) {
-			callback(m.clmSampleList);
-		} else {
-			var counter = 0;
-			var intervalID = setInterval(function() {
-				m.indexData(function() {
-					if(m.clmSampleList.length) {
-						clearInterval(intervalID);
-						callback(m.clmSampleList);
-					} else {
-						if(++ counter >= option.timeout) {
-							clearInterval(intervalID);
-							reject("timeout #CHROM line may not be found in vcf");
-						}
-					}
-				}, reject);
-			}, 1000);
-		}
-	}, reject);
-};
-
 TabixData.prototype.getTargetChunks = function(chr, start, end) {
 	var targetChunks = [];
 	//以下条件にあったデータを出力
-	if(this.chrData.chr2no[chr] === undefined) return [];
-	var chrId = this.chrData.chr2no[chr].no;
 	var tbiData = this.tbiData;
+	var chrId = this.chrData.chr2no[chr].no;
 	if(tbiData.chr[chrId] === undefined) return [];
 	//不要なファイルアクセスを防ぐlinearIndex
 	var indexNo = Math.floor((start - 1) / 16384);
@@ -403,7 +378,7 @@ TabixData.prototype.readWaitReader = function(chr, start, end, callback, reject,
 					} else {
 						if(++ counter >= option.timeout) {
 							clearInterval(intervalID);
-							reject("timeout tabix.js");
+							reject("timeout bam.js");
 						}
 						//console.log("counter:" + counter);
 					}

@@ -1,12 +1,13 @@
 /**
  * @author Hiroyuki Wakaguri: hwakagur@bits.cc
- * bam.js v1.5.20200419(error catch)
+ * bam.js v1.4.20200731
  * _82 NovaSeq(bam) error modified
  */
 
 var BamData = function(fil, option) {
 	this.file = fil;
 	this.option = (option !== undefined)? option: {};
+	if(this.option.getTagFlg === undefined) this.option.getTagFlg = false;
 	this.chrData;
 	this.baiData;
 	this.bamChunk = {};
@@ -39,13 +40,7 @@ BamData.prototype.accRequest = function(callback, reject, option) {
 				return false;
 			}
 		};
-		
-		try {
-			reader.readAsArrayBuffer(blob);
-		} catch(e) {
-			reject("Error file access failed", e);
-			return false;
-		}
+		reader.readAsArrayBuffer(blob);
 	} else {
 		var accFile = (option.file !== undefined)? option.file: this.file;
 		var xhr = new XMLHttpRequest();
@@ -99,12 +94,7 @@ BamData.prototype.chromosome = function(callback, reject) {
 		m.accRequest(function(response) {
 			var chrData = {};
 			
-			try {
-				var plain = new Zlib.Gunzip(new Uint8Array(response)).decompress();
-			} catch(e) {
-				reject(e);
-				return false;
-			}
+			var plain = new Zlib.Gunzip(new Uint8Array(response)).decompress();
 			let dataview = new DataView(plain.buffer);
 			
 			var dtSize = plain.length;
@@ -154,7 +144,7 @@ BamData.prototype.chromosome = function(callback, reject) {
 				poi += 4;
 				
 				//samヘッダのデータサイズ(bytes)が chunkを超えるサイズの場合は次のデータを取りにいかないとならないため
-				dtSize2_2 = poi + l_name + 4 + 1;
+				dtSize2_2 = poi + l_name + 4;
 				//データがチャンクを超える場合データを取り直す(次のチャンクを加えたデータを取りに行く)
 				if(dtSize < dtSize2_2) {
 					m.header(func, reject, size + 1);
@@ -208,7 +198,6 @@ BamData.prototype.accIndex = function(callback, reject) {
 	
 	var option = {};
 	option.file = (this.option.localFlg)? this.file[1]: this.file + ".bai";
-	if(option.file === undefined) option.file = "";
 	
 	this.accRequest(function(response) {
 		var plain = new Uint8Array(response);
@@ -491,6 +480,7 @@ BamData.prototype.getParsedData = function* (binSE) {
 			
 			var block_size = dataview.getUint32(poi, true);
 			poi += 4;
+			var blockStart = poi;
 			var nextBlock = poi + block_size;
 			if(poiEnd < nextBlock) {
 				restArray = plain.slice(poi - 4);
@@ -578,6 +568,103 @@ BamData.prototype.getParsedData = function* (binSE) {
 				poi ++;
 			}
 			hit[7] = qual;
+			
+			if(this.option.getTagFlg) {
+				hit[15] = {};
+				while(poi - blockStart < block_size) {
+					var tag = String.fromCharCode(plain[poi]) + String.fromCharCode(plain[poi + 1]);
+					var val_type = String.fromCharCode(plain[poi + 2]);
+					poi += 3;
+					if(val_type == "A") {
+						hit[15][tag] = String.fromCharCode(plain[poi]);
+						poi ++;
+					} else if(val_type == "c") {
+						hit[15][tag] = dataview.getInt8(poi, true);
+						poi ++;
+					} else if(val_type == "C") {
+						hit[15][tag] = dataview.getUint8(poi, true);
+						poi ++;
+					} else if(val_type == "s") {
+						hit[15][tag] = dataview.getInt16(poi, true);
+						poi += 2;
+					} else if(val_type == "S") {
+						hit[15][tag] = dataview.getUint16(poi, true);
+						poi += 2;
+					} else if(val_type == "i") {
+						hit[15][tag] = dataview.getInt32(poi, true);
+						poi += 4;
+					} else if(val_type == "I") {
+						hit[15][tag] = dataview.getUint32(poi, true);
+						poi += 4;
+					} else if(val_type == "f") {
+						hit[15][tag] = dataview.getFloat32(poi, true);
+						poi += 4;
+					} else if(val_type == "Z") {
+						var txt = "";
+						while(plain[poi]) {
+							txt += String.fromCharCode(plain[poi]);
+							poi ++;
+						}
+						hit[15][tag] = txt;
+						poi ++;
+					} else if(val_type == "H") {
+						var vals = []; 
+						while(plain[poi]) {
+							vals.push(dataview.getUint16(poi, true));
+							poi += 2;
+						}
+						hit[15][tag] = vals;
+						poi ++;
+					} else if(val_type == "B") {
+						var vals = []; 
+						var val_type2 = String.fromCharCode(plain[poi]);
+						var cnt = dataview.getUint32(poi + 1, true);
+						poi += 5;
+						if(val_type2 == "c") {
+							for(var i = 0; i < cnt; i ++) {
+								vals.push(dataview.getInt8(poi, true));
+								poi ++;
+							}
+						} else if(val_type2 == "C") {
+							for(var i = 0; i < cnt; i ++) {
+								vals.push(dataview.getUint8(poi, true));
+								poi ++;
+							}
+						} else if(val_type2 == "s") {
+							for(var i = 0; i < cnt; i ++) {
+								vals.push(dataview.getInt16(poi, true));
+								poi += 2;
+							}
+						} else if(val_type2 == "S") {
+							for(var i = 0; i < cnt; i ++) {
+								vals.push(dataview.getUint16(poi, true));
+								poi += 2;
+							}
+						} else if(val_type2 == "i") {
+							for(var i = 0; i < cnt; i ++) {
+								vals.push(dataview.getInt32(poi, true));
+								poi += 4;
+							}
+						} else if(val_type2 == "I") {
+							for(var i = 0; i < cnt; i ++) {
+								vals.push(dataview.getUint32(poi, true));
+								poi += 4;
+							}
+						} else if(val_type2 == "f") {
+							for(var i = 0; i < cnt; i ++) {
+								vals.push(dataview.getFloat32(poi, true));
+								poi += 4;
+							}
+						} else {
+							alert("bam Error code2: " + val_type2);
+						}
+						
+						hit[15][tag] = vals;
+					} else {
+						alert("bam Error code: " + val_type);
+					}
+				}
+			}
 			
 			yield hit;
 			
@@ -730,12 +817,7 @@ BamData.prototype.accBamPartial = function(unloadedChunks) {
 			while(nowPoi <= lastPoi) {
 				var blockLng = origin[nowPoi + 16] + origin[nowPoi + 16 + 1] * 256 + 1;
 				var nowOrigin = origin.subarray(nowPoi, nowPoi + blockLng);
-				try {
-					var nowPlain = new Zlib.Gunzip(nowOrigin).decompress();
-				} catch(e) {
-					reject(e);
-					return false;
-				}
+				var nowPlain = new Zlib.Gunzip(nowOrigin).decompress();
 				m.bamChunk[chunkData[0] + nowPoi] = [chunkData[0] + nowPoi + blockLng, nowPlain];
 				if(
 					m.loadData.chunk[chunkData[0] + nowPoi] !== undefined && 
@@ -797,5 +879,4 @@ G.prototype.q=function(){var e=0,c=this.b,d=this.i,b,a=new (u?Uint8Array:Array)(
 G.prototype.B=function(){var e,c=this.a;u?this.z?(e=new Uint8Array(c),e.set(this.b.subarray(0,c))):e=this.b.subarray(0,c):(this.b.length>c&&(this.b.length=c),e=this.b);return this.buffer=e};function $(e){this.input=e;this.c=0;this.m=[];this.s=!1}$.prototype.G=function(){this.s||this.g();return this.m.slice()};
 $.prototype.g=function(){for(var e=this.input.length;this.c<e;){var c=new B,d=q,b=q,a=q,f=q,g=q,k=q,m=q,p=q,t=q,h=this.input,l=this.c;c.u=h[l++];c.v=h[l++];(31!==c.u||139!==c.v)&&n(Error("invalid file signature:"+c.u+","+c.v));c.p=h[l++];switch(c.p){case 8:break;default:n(Error("unknown compression method: "+c.p))}c.h=h[l++];p=h[l++]|h[l++]<<8|h[l++]<<16|h[l++]<<24;c.I=new Date(1E3*p);c.O=h[l++];c.N=h[l++];0<(c.h&4)&&(c.J=h[l++]|h[l++]<<8,l+=c.J);if(0<(c.h&8)){m=[];for(k=0;0<(g=h[l++]);)m[k++]=String.fromCharCode(g);
 c.name=m.join("")}if(0<(c.h&16)){m=[];for(k=0;0<(g=h[l++]);)m[k++]=String.fromCharCode(g);c.K=m.join("")}0<(c.h&2)&&(c.C=x(h,0,l)&65535,c.C!==(h[l++]|h[l++]<<8)&&n(Error("invalid header crc16")));d=h[h.length-4]|h[h.length-3]<<8|h[h.length-2]<<16|h[h.length-1]<<24;h.length-l-4-4<512*d&&(f=d);b=new G(h,{index:l,bufferSize:f});c.data=a=b.g();l=b.c;c.L=t=(h[l++]|h[l++]<<8|h[l++]<<16|h[l++]<<24)>>>0;x(a,q,q)!==t&&n(Error("invalid CRC-32 checksum: 0x"+x(a,q,q).toString(16)+" / 0x"+t.toString(16)));c.M=
-d=(h[l++]|h[l++]<<8|h[l++]<<16|h[l++]<<24)>>>0;(a.length&4294967295)!==d&&n(Error("invalid input size: "+(a.length&4294967295)+" / "+d));this.m.push(c);this.c=l}this.s=!0;var y=this.m,s,M,S=0,T=0,C;s=0;for(M=y.length;s<M;++s)T+=y[s].data.length;if(u){C=new Uint8Array(T);for(s=0;s<M;++s)C.set(y[s].data,S),S+=y[s].data.length}else{C=[];for(s=0;s<M;++s)C[s]=y[s].data;C=Array.prototype.concat.apply([],C)}return C};r("Zlib.Gunzip",$);r("Zlib.Gunzip.prototype.decompress",$.prototype.g);r("Zlib.Gunzip.prototype.getMembers",$.prototype.G);}).call(this); //@ sourceMappingURL=gunzip.min.js.map
-
+d=(h[l++]|h[l++]<<8|h[l++]<<16|h[l++]<<24)>>>0;(a.length&4294967295)!==d&&n(Error("invalid input size: "+(a.length&4294967295)+" / "+d));this.m.push(c);this.c=l}this.s=!0;var y=this.m,s,M,S=0,T=0,C;s=0;for(M=y.length;s<M;++s)T+=y[s].data.length;if(u){C=new Uint8Array(T);for(s=0;s<M;++s)C.set(y[s].data,S),S+=y[s].data.length}else{C=[];for(s=0;s<M;++s)C[s]=y[s].data;C=Array.prototype.concat.apply([],C)}return C};r("Zlib.Gunzip",$);r("Zlib.Gunzip.prototype.decompress",$.prototype.g);r("Zlib.Gunzip.prototype.getMembers",$.prototype.G);}).call(this);
